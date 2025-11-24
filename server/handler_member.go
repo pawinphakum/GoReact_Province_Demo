@@ -7,6 +7,7 @@ import (
 )
 
 // Struct ของสมาชิก
+// json:"field_name" คือการตั้งชื่อ field เวลาส่งข้อมูลแบบ JSON ต้องตั้งให้ตรงกับที่ React ต้องการ
 type Member struct {
 	Id             int    `json:"id"`
 	Username       string `json:"username"`
