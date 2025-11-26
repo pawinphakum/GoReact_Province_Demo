@@ -161,7 +161,26 @@ function Member() {
               <td style={{padding:"10px"}}>{m.id}</td>
               <td style={{padding:"10px", fontWeight:"bold", color:"#2980b9"}}>{m.username}</td>
               <td style={{padding:"10px"}}>{m.first_name} {m.last_name}<br/><small>{m.formatted_phone}</small></td>
-              <td style={{padding:"10px"}}>{m.province} {m.zip_code}</td>
+              <td style={{padding:"10px"}}>
+                  {/* เช็คก่อนว่ามีจังหวัดไหม (เพราะบางคนอาจเป็น null) */}
+                  {m.province.id !== 0 ? (
+                      <div>
+                          <strong>{m.province.name_th}</strong>
+                          <span style={{
+                              fontSize: "0.8rem", 
+                              backgroundColor: "#3498db", 
+                              color: "white", 
+                              padding: "2px 5px", 
+                              borderRadius: "4px",
+                              marginLeft: "5px"
+                          }}>
+                              {m.province.abbr_en}
+                          </span>
+                      </div>
+                  ) : (
+                      <span style={{color:"#ccc"}}>- ไม่ระบุ -</span>
+                  )}
+              </td>
               <td style={{padding:"10px", textAlign:"center"}}>
                   <button onClick={() => handleEdit(m)} style={btnEditStyle}>แก้ไข</button>
                   <button onClick={() => handleDelete(m.id)} style={btnDeleteStyle}>ลบ</button>

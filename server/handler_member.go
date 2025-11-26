@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
@@ -23,6 +24,20 @@ type Member struct {
 	FormattedPhone string `json:"formatted_phone"`
 }
 
+// 1. สร้าง Struct สำหรับการตอบกลับ (Response)
+// สังเกตบรรทัด Province: มันไม่ใช่ string แล้ว แต่มันคือ Struct Province ทั้งก้อน!
+type MemberResponse struct {
+	Id             int    `json:"id"`
+	Username       string `json:"username"`
+	FirstName      string `json:"first_name"`
+	LastName       string `json:"last_name"`
+	Phone          string `json:"phone"`
+	FormattedPhone string `json:"formatted_phone"`
+
+	// นี่คือพระเอกของงาน 1:n
+	Province Province `json:"province"`
+}
+
 // Helper Function (ใช้เฉพาะในไฟล์นี้ไม่ต้องตัวใหญ่ก็ได้ แต่ตั้งไว้ก็ดี)
 func FormatPhoneNumber(phone string) string {
 	if len(phone) == 10 {
@@ -33,19 +48,51 @@ func FormatPhoneNumber(phone string) string {
 
 // --- Handler Functions ---
 
+// 2. แก้ฟังก์ชันดึงข้อมูล (GET) ให้ใช้ JOIN
 func GetMembers(c *fiber.Ctx) error {
-	rows, err := db.Query("SELECT id, username, first_name, last_name, address_line1, sub_district, district, province, zip_code, phone FROM members ORDER BY id ASC")
+	// SQL JOIN: ดึงข้อมูลสมาชิก + ข้อมูลจังหวัด มาพร้อมกัน
+	// COALESCE คือการกันเหนียว: ถ้า province_id เป็น null ให้แสดงเป็นค่าว่าง/0 แทน
+	sqlQuery := `
+		SELECT 
+			m.id, m.username, m.first_name, m.last_name, m.phone,
+			p.id, p.name_th, p.name_en, p.abbr_th, p.abbr_en
+		FROM members m
+		LEFT JOIN provinces p ON m.province_id = p.id
+		ORDER BY m.id DESC
+	`
+
+	rows, err := db.Query(sqlQuery)
 	if err != nil {
 		return c.Status(500).SendString(err.Error())
 	}
 	defer rows.Close()
 
-	var members []Member
+	var members []MemberResponse // ใช้ Struct ตัวใหม่ที่เราสร้าง
+
 	for rows.Next() {
-		var m Member
-		if err := rows.Scan(&m.Id, &m.Username, &m.FirstName, &m.LastName, &m.AddressLine1, &m.SubDistrict, &m.District, &m.Province, &m.ZipCode, &m.Phone); err != nil {
+		var m MemberResponse
+
+		// ตัวแปรสำหรับรับค่าที่อาจจะเป็น Null (Database เรื่องมากนิดนึงครับ)
+		var pId sql.NullInt64
+		var pNameTh, pNameEn, pAbbrTh, pAbbrEn sql.NullString
+
+		// Scan ยาวๆ ทีเดียวทั้งตารางสมาชิก และ ตารางจังหวัด
+		if err := rows.Scan(
+			&m.Id, &m.Username, &m.FirstName, &m.LastName, &m.Phone, // ส่วน Member
+			&pId, &pNameTh, &pNameEn, &pAbbrTh, &pAbbrEn, // ส่วน Province
+		); err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
+
+		// แปลงค่า Null ให้เป็นค่าปกติ ก่อนยัดใส่ Struct
+		if pId.Valid {
+			m.Province.Id = int(pId.Int64)
+			m.Province.NameTh = pNameTh.String
+			m.Province.NameEn = pNameEn.String
+			m.Province.AbbrTh = pAbbrTh.String
+			m.Province.AbbrEn = pAbbrEn.String
+		}
+
 		m.FormattedPhone = FormatPhoneNumber(m.Phone)
 		members = append(members, m)
 	}
